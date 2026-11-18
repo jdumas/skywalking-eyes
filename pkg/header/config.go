@@ -50,6 +50,7 @@ type LicenseConfig struct {
 	SoftwareName   string `yaml:"software-name"`
 	Content        string `yaml:"content"`
 	Pattern        string `yaml:"pattern"`
+	ReplacePattern string `yaml:"replace-pattern"`
 }
 
 type ConfigHeader struct {
@@ -153,6 +154,11 @@ func tryMatchPatten(path string, patterns []string) (bool, error) {
 }
 
 func (config *ConfigHeader) Finalize() error {
+	if strings.TrimSpace(config.License.ReplacePattern) != "" {
+		if _, err := config.replacementPattern(); err != nil {
+			return err
+		}
+	}
 	if len(config.Paths) == 0 {
 		config.Paths = []string{"**"}
 	}

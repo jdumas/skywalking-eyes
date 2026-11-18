@@ -336,6 +336,34 @@ exit status 1
 
 The texts are compared in their normalized forms (comment markers stripped, whitespace flattened, case-insensitive, etc., the same forms that `header check` compares), so every difference shown is a real cause of the check failure: `[-text-]` marks text that is expected by the configured license but missing in the file, `{+text+}` marks text that is in the file but not expected by the configured license, and long runs of unchanged or missing words are collapsed into `...`.
 
+#### Replacing a known older header
+
+`license.pattern` still describes an acceptable header. To migrate a known older header without accepting it as valid, set the opt-in `license.replace-pattern` separately:
+
+```yaml
+header:
+  license:
+    content: |
+      Copyright [year] Example
+      Licensed under Apache-2.0.
+    pattern: |
+      Copyright [0-9]{4}(?:[-, ]+[0-9]{2,4})* Example
+      Licensed under Apache-2\.0\.
+    replace-pattern: |
+      CONFIDENTIAL
+      Copyright (?P<year>[0-9]{4}(?:[-, ]+[0-9]{2,4})*) Example
+      All rights reserved\.
+  comment: never
+```
+
+`header check` rejects the old notice; `header fix` replaces it in place using the existing comment renderer and encoding-preserving writer. The replacement regex must match the complete body of the first comment after any configured preamble, without comment delimiters or prefixes. Unlike the normalized, case-insensitive acceptance `pattern`, this regex is case-sensitive and matches the extracted body exactly; comment prefixes, their one-space padding, and trailing horizontal whitespace are removed. Extra body indentation is significant. It is not searched throughout the source file. Replacement currently uses the file's configured comment style; cross-style migrations are not inferred.
+
+An optional named `year` capture preserves an existing year, range, or comma-separated list through the `[year]` placeholder. A participating capture takes precedence over `copyright-year`. Repeated `year` names in alternative branches are supported; differing nonempty captures are rejected. Without a nonempty capture, the configured `copyright-year` or the current year is used as before. The acceptable `pattern` must permit the generated result, including a preserved historical year; otherwise the operation fails without writing. No Git history lookup is needed.
+
+The opt-in path refuses unterminated comments in the configured style, recognized-but-unmatched leading license-like notices, detected multiple notices, and invalid year captures rather than changing them. The guard walks consecutive leading comments in the configured style and checks the next `license-location-threshold` raw bytes for notice keywords. It is conservative and heuristic, not a general license classifier; long notices in a different style may not be detected. Missing headers can still be added; ordinary unrelated comments and source bytes are retained. Existing-header replacements preserve their line endings; missing-header insertion retains the legacy formatting behavior. Review replacement patterns carefully: configuring a pattern is an explicit authorization to replace matching notices, not a legal determination that relicensing is permitted.
+
+Without `replace-pattern`, check and fix behavior is unchanged. For a read-only audit, run `header check`; replacement does not make an old notice acceptable. Related discussion: [apache/skywalking#10972](https://github.com/apache/skywalking/discussions/10972) and [apache/skywalking#12887](https://github.com/apache/skywalking/discussions/12887).
+
 #### Resolve Dependencies' licenses
 
 This command assists human audits of the dependencies licenses. It's exit code is always 0.
@@ -870,7 +898,7 @@ header:
 3. The copyright owner to replace the `[owner]` in the `SPDX-ID` license template.
 4. The copyright software name to replace the `[software-name]` in the `SPDX-ID` license template.
 5. If you are not using the standard license text, you can paste your license text here, this will be used as the content when `fix` command needs to insert a license header, if both `license` and `SPDX-ID` are specified, `license` wins.
-6. The `pattern` is an optional regexp. You don’t need this if all the file headers are the same as `license` or the license of `SPDX-ID`, otherwise you need to compose a pattern that matches your existing license texts so that `license-eye` won't complain about the existing license headers. If you want to replace your existing license headers, you can compose a `pattern` that matches your existing license headers, and modify the `content` to what you want to have, then `license-eye header fix` would rewrite all the existing license headers to the wanted `content`.
+6. The `pattern` is an optional regexp. You don’t need this if all the file headers are the same as `license` or the license of `SPDX-ID`, otherwise you need to compose a pattern that matches your existing license texts so that `license-eye` won't complain about the existing license headers. A match makes the existing header acceptable, so changing `content` does not force its replacement. To migrate a known older header while validating the target license strictly, use the separate `replace-pattern` option described under [Replacing a known older header](#replacing-a-known-older-header).
 7. The `paths` are the path list that will be checked (and fixed) by license-eye, default is `['**']`. Formats like `**/*`.md and `**/bin/**` are supported. Paths passed on the command line (`license-eye header check [paths...]`) replace this list. In a Git repository, any path in this list, from the config or the command line, that names an existing file directly is checked as is, without Git-based file discovery, which is much faster in large repositories, e.g. in pre-commit hooks. Such a path must be relative, use `/` as the separator (also on Windows), contain no globs, `./` or `..`, match the on-disk spelling exactly, and not lead through a symlinked directory, `.git`, or a nested repository. Other paths, such as globs and directories, still go through discovery. `paths-ignore` applies to all files, but `.gitignore` does not apply to files named directly.
 8. The `paths-ignore` are the path list that will be ignored by license-eye. In a Git repository, `.git` and files matched by `.gitignore` are also left out, by Git-based file discovery rather than by this list, so `.gitignore` does not apply to files named directly (see 7).
 9. On what condition License-Eye will comment the check results on the pull request, `on-failure`, `always` or `never`. Options other than `never` require the environment variable `GITHUB_TOKEN` to be set.

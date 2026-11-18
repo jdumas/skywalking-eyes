@@ -61,12 +61,19 @@ func InsertComment(file string, style *comments.CommentStyle, config *ConfigHead
 		return fmt.Errorf("failed to decode %v: %w", file, err)
 	}
 
-	licenseHeader, err := GenerateLicenseHeader(style, config)
-	if err != nil {
-		return err
+	if strings.TrimSpace(config.License.ReplacePattern) != "" {
+		content, err = replaceKnownHeader(content, style, config)
+		if err != nil {
+			return fmt.Errorf("cannot safely fix %v: %w", file, err)
+		}
+	} else {
+		var licenseHeader string
+		licenseHeader, err = GenerateLicenseHeader(style, config)
+		if err != nil {
+			return err
+		}
+		content = rewriteContent(style, content, licenseHeader, config.LicensePattern(style))
 	}
-
-	content = rewriteContent(style, content, licenseHeader, config.LicensePattern(style))
 
 	content, err = encodeContent(content, encoding)
 	if err != nil {
