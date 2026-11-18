@@ -18,8 +18,15 @@
 package commands
 
 import (
+	"errors"
+
+	"github.com/apache/skywalking-eyes/pkg/header"
+	"github.com/apache/skywalking-eyes/pkg/logger"
+
 	"github.com/spf13/cobra"
 )
+
+var respectConfigPaths bool
 
 var Header = &cobra.Command{
 	Use:     "header",
@@ -31,7 +38,23 @@ var Header = &cobra.Command{
 }
 
 func init() {
+	Header.PersistentFlags().BoolVar(&respectConfigPaths, "respect-config-paths", false,
+		"intersect CLI paths with each configured header path filter (requires paths)")
 	Header.AddCommand(CheckCommand)
 	Header.AddCommand(FixCommand)
 	Header.AddCommand(DiffCommand)
+}
+
+func checkHeader(config *header.ConfigHeader, result *header.Result, paths []string) error {
+	if respectConfigPaths {
+		if len(paths) == 0 {
+			return errors.New("--respect-config-paths requires at least one path")
+		}
+		return header.CheckPaths(config, result, paths)
+	}
+	if len(paths) > 0 {
+		logger.Log.Debugln("Overriding paths with command line args.")
+		config.Paths = paths
+	}
+	return header.Check(config, result)
 }

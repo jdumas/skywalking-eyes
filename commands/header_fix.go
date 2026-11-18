@@ -40,12 +40,7 @@ var FixCommand = &cobra.Command{
 		for _, h := range Config.Headers() {
 			var result header.Result
 
-			if len(args) > 0 {
-				logger.Log.Debugln("Overriding paths with command line args.")
-				h.Paths = args
-			}
-
-			if err := header.Check(h, &result); err != nil {
+			if err := checkHeader(h, &result, args); err != nil {
 				return err
 			}
 

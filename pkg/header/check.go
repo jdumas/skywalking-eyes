@@ -45,7 +45,14 @@ const currentDir = "./"
 
 // Check checks the license headers of the specified paths/globs.
 func Check(config *ConfigHeader, result *Result) error {
-	fileList, err := listFiles(config)
+	return CheckPaths(config, result, config.Paths)
+}
+
+// CheckPaths checks candidates selected by paths while preserving the configured path filters.
+func CheckPaths(config *ConfigHeader, result *Result, paths []string) error {
+	selection := *config
+	selection.Paths = paths
+	fileList, err := listFiles(&selection)
 	if err != nil {
 		return err
 	}
